@@ -12,3 +12,5 @@ Things this game will include:
 2. Anything can become sentient (bad potions which an enemy makes sentient will run towards you and throw themselves at you)
 3. A complex but fair combat system
 4. Compelling and interesting desire-driven AI powered by [Dijkstra Maps!](http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized)
+5. Living things get weaker as they're injured, and will try to flee
+And lots more interesting stuff to come! :) 
