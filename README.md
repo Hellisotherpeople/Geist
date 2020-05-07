@@ -3,6 +3,7 @@ A philosophy-inspired rougelike with Dijkstra-Maps and Unique Mechanics!
 
 ![](ezgif.com-video-to-gif.gif)
 
+The number field around me is a visualization of a [Dijkstra Map](http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized)
 
 You've been tasked by Plato to ascend up Platos caves to find the ethereal "Thing-in-Itself", defeat its guardian (Immanual Kant), and bring it back to Plato. 
 
