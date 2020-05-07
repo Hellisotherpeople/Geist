@@ -5,9 +5,10 @@ A philosophy-inspired rougelike with Dijkstra-Maps and Unique Mechanics!
 
 The number field around me is a visualization of a [Dijkstra Map](http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized)
 
+## The story 
 You've been tasked by Plato to ascend up Platos caves to find the ethereal "Thing-in-Itself", defeat its guardian (Immanual Kant), and bring it back to Plato. 
 
-Things this game will include: 
+## Things this game will eventually include: 
 
 1. Destructable environments 
 2. Anything can become sentient (bad potions which an enemy makes sentient will run towards you and throw themselves at you)
