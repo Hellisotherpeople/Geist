@@ -5,10 +5,13 @@ import tcod.noise
 import numpy as np
 import random 
 from enum import Enum
+import time
+import sys
 
 class GameStates(Enum):
     PLAYERS_TURN = 1
     ENEMY_TURN = 2
+    PLAYER_DEAD = 3
 
 screen_width = 80
 screen_height = 50
@@ -34,16 +37,20 @@ class Entity:
     # - Make a "Varient" system for items and monsters
     # - Include special unique items and monsters
     # - All entities will be potentiall turned sentient
-    def __init__(self, x, y, char, color, name, blocks = False, fighter = True, ai = None):
+    def __init__(self, x, y, char, name, fg_color = [0,0,0], bg_color = [0,0,0], blocks = False, 
+    fighter = True, ai = None, hp = [0,0,0,0,0], attack_power = 0):
         self.x = x
         self.y = y
         self.char = char
-        self.color = color ##unused right now
+        self.fg_color = fg_color # Tuple of rgb
+        self.bg_color = bg_color
         self.blocks = blocks
         self.name = name
         self.fighter = True ## Can you fight people?
         self.ai = ai ## Can be a string indicating what type of AI this will have
         ### I intend for all AI to be potentially sentient (vicious potion running at you!) 
+        self.hp = hp
+        self.attack_power = attack_power ## should be 0 unless its now alive
 
     def move(self, dx, dy):
         #move by the given amount
@@ -59,12 +66,40 @@ class Entity:
             if 0 <= self.x < gm_height:
                 is_visable = game_map.fov[self.x][self.y]
                 if is_visable:
-                    rand_red_char = random.randint(100, 255)
-                    root_console.tiles_rgb[self.x, self.y] = self.char, (rand_red_char, 0, 0), (0, 0, 0)
+                    rand_red_char_fg = random.randint(self.fg_color[0], 255)
+                    modified_red_color = self.fg_color[0] + rand_red_char_fg
+                    mod_color = [modified_red_color, self.fg_color[1], self.fg_color[2]]
+                    root_console.tiles_rgb[self.x, self.y] = self.char, mod_color, self.bg_color
  
     def clear(self):
         #erase the character that represents this Entity
         root_console.put_char(self.x, self.y, ch = 0, bg_blend = 5)
+
+    def kill_entity(self):
+        if self.name == "Player":
+            self.char = ord("D")
+            print("You died!")
+            time.sleep(2)
+            quit()
+        else:
+            print('{0} has died!'.format(self.name))
+            self.char = ord("%")
+            self.blocks = False
+            self.fighter = None
+            self.ai = None
+            self.name = 'remains of ' + self.name
+            return None
+
+    def take_damage(self, amount):
+        self.hp -= amount
+        if self.hp <= 0:
+            self.kill_entity()
+
+    def attack(self, target):
+        damage = self.attack_power
+        target.take_damage(damage)
+        print('{0} attacks {1} for {2} hit points.'.format(self.name, target.name, str(damage)))
+        
 
     def take_turn(self, d_map):
         if self.ai == "Basic":
@@ -83,9 +118,10 @@ class Entity:
                         is_visable = game_map.fov[can_x][can_y]
                         if is_visable:
                             if is_walkable:
-                                if get_blocking_entities_at_location(Entitys, can_x, can_y): ##Are we gonna hit anything?
+                                possible_entity = get_blocking_entities_at_location(Entitys, can_x, can_y)
+                                if possible_entity: ##Are we gonna hit anything?
                                     #self.move_to_position(can_x, can_y)
-                                    print("The " + self.name + " attacks you!")
+                                    self.attack(possible_entity)
                                 else:
                                     self.move_to_position(can_x, can_y)
                             else:
@@ -135,7 +171,7 @@ class State(tcod.event.EventDispatch):
                     if is_walkable:
                         target = get_blocking_entities_at_location(Entitys, ch_x, ch_y) ### check if there is an enemy
                         if target:
-                            print("You hit the " + target.name + " in the shins")
+                            self.player_Entity.attack(target)
                         else: ### No entity that blocks, move
                             self.player_Entity.move(dx, dy)
                             player_x_pos = self.player_Entity.x
@@ -280,7 +316,7 @@ def dungeon_generate(game_map, entities, number_of_monsters, noise = None):
                     player_str_x = new_x
                     player_str_y = new_y
                     # this is the first room, where the player starts at
-                    player = Entity(new_x, new_y, ord("@"), 5, name = "Player", fighter = True, blocks = True)
+                    player = Entity(new_x, new_y, ord("@"), name = "Player", fighter = True, blocks = True, hp = 10, attack_power=1)
                     entities.append(player)
     if noise:
         for y in range(game_map.height):
@@ -294,11 +330,11 @@ def dungeon_generate(game_map, entities, number_of_monsters, noise = None):
                         if random.randint(0, 100) <= 80:
                             troll_number += 1
                             t_name = "Troll " + str(troll_number)
-                            monster = Entity(x, y, ord("T"), 5, name = t_name, blocks = True, fighter = True, ai = "Dijkstra")
+                            monster = Entity(x, y, ord("T"), name = t_name, blocks = True, fighter = True, fg_color = [0, 100, 200], ai = "Dijkstra", attack_power = 1, hp = 1)
                         else:
                             goblin_number += 1
                             g_name = "Goblin " + str(goblin_number)
-                            monster = Entity(x, y, ord("G"), 5, name = g_name, blocks = True, fighter = True, ai = "Dijkstra")
+                            monster = Entity(x, y, ord("G"), name = g_name, blocks = True, fighter = True, fg_color = [10, 200, 0], ai = "Dijkstra", attack_power = 2, hp = 2)
                         entities.append(monster)
         
 
