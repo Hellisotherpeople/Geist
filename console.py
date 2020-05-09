@@ -13,8 +13,13 @@ class GameStates(Enum):
     ENEMY_TURN = 2
     PLAYER_DEAD = 3
 
-screen_width = 80
-screen_height = 50
+class RenderOrder(Enum):
+    CORPSE = 1
+    ITEM = 2 
+    ACTOR = 3
+
+screen_width = 150
+screen_height = 100
 
 room_max_size = 15
 room_min_size = 2
@@ -38,7 +43,7 @@ class Entity:
     # - Include special unique items and monsters
     # - All entities will be potentiall turned sentient
     def __init__(self, x, y, char, name, fg_color = [0,0,0], bg_color = [0,0,0], blocks = False, 
-    fighter = True, ai = None, hp = [0,0,0,0,0], attack_power = 0):
+    fighter = True, ai = None, hp = [0,0,0,0,0], attack_power = 0, render_order = RenderOrder.ACTOR):
         self.x = x
         self.y = y
         self.char = char
@@ -51,6 +56,7 @@ class Entity:
         ### I intend for all AI to be potentially sentient (vicious potion running at you!) 
         self.hp = hp
         self.attack_power = attack_power ## should be 0 unless its now alive
+        self.render_order = render_order
 
     def move(self, dx, dy):
         #move by the given amount
@@ -66,6 +72,7 @@ class Entity:
             if 0 <= self.x < gm_height:
                 is_visable = game_map.fov[self.x][self.y]
                 if is_visable:
+                    ##Color based on health left? 
                     rand_red_char_fg = random.randint(self.fg_color[0], 255)
                     modified_red_color = self.fg_color[0] + rand_red_char_fg
                     mod_color = [modified_red_color, self.fg_color[1], self.fg_color[2]]
@@ -88,6 +95,7 @@ class Entity:
             self.fighter = None
             self.ai = None
             self.name = 'remains of ' + self.name
+            self.render_order = RenderOrder.CORPSE
             return None
 
     def take_damage(self, amount):
@@ -316,7 +324,7 @@ def dungeon_generate(game_map, entities, number_of_monsters, noise = None):
                     player_str_x = new_x
                     player_str_y = new_y
                     # this is the first room, where the player starts at
-                    player = Entity(new_x, new_y, ord("@"), name = "Player", fighter = True, blocks = True, hp = 10, attack_power=1)
+                    player = Entity(new_x, new_y, ord("@"), name = "Player", fighter = True, blocks = True, hp = 100, attack_power=1, render_order = RenderOrder.ACTOR)
                     entities.append(player)
     if noise:
         for y in range(game_map.height):
@@ -330,11 +338,11 @@ def dungeon_generate(game_map, entities, number_of_monsters, noise = None):
                         if random.randint(0, 100) <= 80:
                             troll_number += 1
                             t_name = "Troll " + str(troll_number)
-                            monster = Entity(x, y, ord("T"), name = t_name, blocks = True, fighter = True, fg_color = [0, 100, 200], ai = "Dijkstra", attack_power = 1, hp = 1)
+                            monster = Entity(x, y, ord("T"), name = t_name, blocks = True, fighter = True, fg_color = [0, 100, 200], ai = "Dijkstra", attack_power = 1, hp = 1, render_order = RenderOrder.ACTOR)
                         else:
                             goblin_number += 1
                             g_name = "Goblin " + str(goblin_number)
-                            monster = Entity(x, y, ord("G"), name = g_name, blocks = True, fighter = True, fg_color = [10, 200, 0], ai = "Dijkstra", attack_power = 2, hp = 2)
+                            monster = Entity(x, y, ord("G"), name = g_name, blocks = True, fighter = True, fg_color = [10, 200, 0], ai = "Dijkstra", attack_power = 2, hp = 2, render_order = RenderOrder.ACTOR)
                         entities.append(monster)
         
 
@@ -378,10 +386,14 @@ def render_all(entities, screen_width, screen_height):
                 #pass
 
     # Draw all entities in the list
-    for entity in entities:
+
+    entities_in_render_order = sorted(entities, key = lambda x: x.render_order.value)
+    for entity in entities_in_render_order:
         entity.draw()
 
-    root_console.blit(root_console, 0, 0, gm_width, gm_height, 0, 0, 0)
+    #root_console.print_ex
+
+    root_console.blit(root_console, 0, 0, screen_width, screen_height, 0, 0, 0)
 
 
 def clear_all(entities):
@@ -391,11 +403,10 @@ def clear_all(entities):
 
 print(Entitys[0])
 # The main game loop, doing console stuff 
-with tcod.console_init_root(gm_width, gm_height, order="F") as root_console:
-    #root_console.print_(x=30, y=30, string='Hello World!') ##Basic String
-    #root_console.put_char(x=state.get_player_x(), y=state.get_player_y(), ch = 64, bg_blend = 5) ##Put our character 
-    #root_console.draw_rect(x=40, y=40, width=10, height=30, ch = 61)Thank
-    #root_console.draw_frame(x = 0, y = 0, width = 40, height = 40)
+with tcod.console_init_root(screen_width, screen_height, order="F") as root_console:
+    root_console.draw_frame(x = 1, y = 0, width = gm_width, height = gm_height, bg = (200, 20, 20)) ## Seperater
+    root_console.print_box(x = 103, y = 5, width = 40, height = 1, string = ("UI under construction"), bg = (200, 20, 20) )
+    #root_console.draw_rect(x = 101, y= 50, width = 10, height = 1, ch = ord("n"))
     while True:
         render_all(Entitys, gm_width, gm_height)
         tcod.console_flush()  # Show the console. 
