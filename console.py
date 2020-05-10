@@ -18,8 +18,6 @@ class RenderOrder(Enum):
     ITEM = 2 
     ACTOR = 3
 
-screen_width = 150
-screen_height = 100
 
 room_max_size = 15
 room_min_size = 2
@@ -27,6 +25,9 @@ max_rooms = 300
 
 gm_width = 100
 gm_height = 100
+
+screen_width = gm_width + 50
+screen_height = gm_height
 
 tcod.default_fg = [1, 3, 1]
 
@@ -279,6 +280,10 @@ def create_v_tunnel(y1, y2, x):
 game_map = tcod.map.Map(width = gm_width, height = gm_height, order="F")
 game_map.walkable[:] = False
 game_map.transparent[:] = False
+game_map.explored = game_map.walkable[:].copy() ## initialize explroed tiles to be false
+print(game_map.explored)
+
+print(game_map.explored)
 
 player = None
 
@@ -361,23 +366,36 @@ state = State()
 #### ~~~~ Render Functions ~~~~~~~~~ ########
 
 def render_all(entities, screen_width, screen_height):
+
+    v_dijksta = False ## This only works when there is only one distance value
     for x in range(game_map.width):
         for y in range(game_map.height):
             is_walkable = game_map.walkable[x][y]
             is_visable = game_map.fov[x][y]
+            explored = game_map.explored[x][y]
+
             if is_visable:
                 rand_red = random.randint(100, 255)
                 rand_red_wall = random.randint(0,50)
+                game_map.explored[x][y] = True
                 if is_walkable:
-                    dijkstra_dist_int = dist[x][y]
-                    if dijkstra_dist_int < 10:
-                        ord_char = ord(dijkstra_dist_int.astype(str))
+                    if v_dijksta:
+                        dijkstra_dist_int = dist[x][y]
+                        if dijkstra_dist_int < 10:
+                            ord_char = ord(dijkstra_dist_int.astype(str))
+                        else:
+                            ord_char = ord("_")
+                        root_console.tiles_rgb[x, y] = ord_char, (rand_red, 0, 255), (0, 0, 0)
                     else:
-                        ord_char = ord("_")
-                    #root_console.tiles_rgb[x, y] = ord("_"), (rand_red, 0, 255), (0, 0, 0) ## Floors 
-                    root_console.tiles_rgb[x, y] = ord_char, (rand_red, 0, 255), (0, 0, 0)
+                        root_console.tiles_rgb[x, y] = ord("_"), (rand_red, 0, 255), (0, 0, 0) ## Floors 
                 else:
                     root_console.tiles_rgb[x, y] = ord("#"), (255, 0, 40), (rand_red_wall, 0, 0)
+
+            elif explored:
+                if is_walkable:
+                    root_console.tiles_rgb[x, y] = ord("_"), (200, 100, 100), (10, 10, 10)
+                else:
+                    root_console.tiles_rgb[x, y] = ord("#"), (200, 100, 100), (10, 10, 10)
             else:
                 if is_walkable:
                     root_console.tiles_rgb[x, y] = ord(" "), (0, 0, 0), (0, 0, 0)
@@ -419,11 +437,14 @@ with tcod.console_init_root(screen_width, screen_height, order="F") as root_cons
             player_ent = Entitys[0]
             player_x = player_ent.x
             player_y = player_ent.y 
+            ### Compute the Dijkstra Map
+            dist = tcod.path.maxarray((gm_width, gm_height), dtype = np.int32, order = "F")  ##Compute distance array, modified in place
+            dist[player_x, player_y] = 0  ## For now, monster just wants to hunt the player 
+            dist[50, 50] = 1 ## Testing the desire driven AI part of this, it works! 
+            tcod.path.dijkstra2d(dist, cost_map, 1, 1) ## Compute the map 
             for entity in Entitys:
                 if entity != player:
-                    dist = tcod.path.maxarray((gm_width, gm_height), dtype = np.int32, order = "F")  ##Compute distance array, modified in place
-                    dist[player_x, player_y] = 0  ## For now, monster just wants to hunt the player 
-                    tcod.path.dijkstra2d(dist, cost_map, 1, 1) ## Compute the map 
+
                     entity.take_turn(d_map = dist)
             state.turn = GameStates.PLAYERS_TURN
 
