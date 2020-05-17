@@ -21,7 +21,10 @@ And lots more interesting stuff to come! :)
 ## Visual development log 
 
 (Second Release) 
+
 ![](ezgif-3-632e43309f0c.gif)
 
+
 (First Release) 
+
 ![](ezgif.com-video-to-gif.gif)
