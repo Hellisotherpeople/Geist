@@ -1,5 +1,5 @@
 # Geist
-A philosophy-inspired rougelike with Dijkstra-Maps and Unique Mechanics!
+A philosophy-inspired roguelike with Dijkstra-Maps and Unique Mechanics!
 Still a WIP, Not even close to being done! You get to watch me drunkenly stumble through learning (or ignoring) proper OOP techniques
 
 ![](ezgif-3-632e43309f0c.gif)
