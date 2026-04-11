@@ -1,29 +1,58 @@
 # Geist
 A philosophy-inspired roguelike with Dijkstra-Maps and Unique Mechanics!
-Still a WIP, Not even close to being done! You get to watch me drunkenly stumble through learning (or ignoring) proper OOP techniques
 
-![](ezgif-3-632e43309f0c.gif)
-
-The number field around me is a visualization of a [Dijkstra Map](http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized)
+![Geist gameplay](gameplay.gif)
 
 ## The story 
-You've been tasked by Plato to ascend up Platos caves to find the ethereal "Thing-in-Itself", defeat its guardian (Immanual Kant), and bring it back to Plato. 
+You've been tasked by Plato to ascend up Platos caves to find the ethereal "Thing-in-Itself", defeat its guardian (Immanuel Kant), and bring it back to Plato. 
 
-## Things this game will eventually include: 
+## Features
 
-1. Destructable environments 
-2. Anything can become sentient (bad potions which an enemy makes sentient will run towards you and throw themselves at you)
-3. A complex but fair combat system
-4. Compelling and interesting desire-driven AI powered by [Dijkstra Maps!](http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized)
-5. Living things get weaker as they're injured, and will try to flee
-And lots more interesting stuff to come! :) 
+- 7 themed dungeon depths with animated, shimmering color palettes
+- 10 procedural layout generators (cavern, cathedral, BSP, maze, rings, and more)
+- Dijkstra-map powered AI with multiple enemy behaviors (berserker, stalker, swarm, coward)
+- Wand system with bolt animations and allies
+- Equipment, scrolls, potions, shrines, and an XP/leveling system
+- 5 player traits that change starting stats and playstyle
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| Arrow keys / Numpad / `hjklyubn` | Move (8-directional) |
+| Numpad 5 | Wait a turn |
+| `g` | Pick up item |
+| `i` | Open inventory |
+| `d` (in inventory) | Toggle drop mode |
+| `x` | Look mode |
+| `c` | Character screen |
+| `< > .` | Use stairs |
+| Left click | Move / attack |
+| Right click | Look at tile |
+| Esc | Quit |
+
+## Running
+
+```bash
+uv sync
+uv run python main.py
+```
+
+Requires Python 3.13+.
+
+## Screenshot
+
+![Geist screenshot](screenshot.png)
 
 ## Visual development log 
+
+(Current)
+
+![](gameplay.gif)
 
 (Second Release) 
 
 ![](ezgif-3-632e43309f0c.gif)
-
 
 (First Release) 
 

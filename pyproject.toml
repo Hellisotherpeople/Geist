@@ -1,0 +1,10 @@
+[project]
+name = "geist"
+version = "0.1.0"
+description = "A roguelike game"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "tcod>=20.0",
+    "numpy",
+]
