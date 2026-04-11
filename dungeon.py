@@ -9,10 +9,15 @@ from data import (
     get_monsters, get_items, pick_weighted,
     ENEMY_PREFIXES, CHAMPION_TINT, ITEM_PREFIXES, ITEM_SUFFIXES,
     generate_random_wand, generate_random_scroll,
+    generate_random_potion, generate_random_ring,
+    generate_random_amulet, generate_random_food,
+    generate_random_trap, TRAP_TYPES,
 )
 
 MONSTER_CHANCE = 0.002
 ITEM_CHANCE = 0.0008
+TRAP_CHANCE = 0.0015
+DOOR_CHANCE = 0.30
 
 
 class Rect:
@@ -42,7 +47,6 @@ class Rect:
             for y in range(self.y1 + 1, self.y2):
                 tiles.append((x, y))
         return tiles
-
 
 
 def _prune_unreachable(walkable: np.ndarray, transparent: np.ndarray, origin_x: int, origin_y: int):
@@ -107,6 +111,10 @@ def apply_enemy_prefix(entity, template: dict) -> None:
             ch = chr(entity.char)
             if ch.islower():
                 entity.char = ord(ch.upper())
+        # grant_ability from prefix
+        if "grant_ability" in prefix:
+            entity.ability = prefix["grant_ability"]
+            entity.ability_params = prefix.get("grant_ability_params")
 
 
 def apply_item_affixes(template: dict) -> dict:
@@ -168,13 +176,111 @@ def _resolve_scroll(template: dict) -> dict:
     return template
 
 
+def _resolve_potion(template: dict) -> dict:
+    """Replace generic potion template with a specific potion type."""
+    info = generate_random_potion()
+    template["potion_id"] = info["potion_id"]
+    template["name"] = info["name"]
+    template["fg"] = info["fg"]
+    # Copy all effect data
+    for key in ("effect", "value", "status", "duration", "buff_power", "buff_defense"):
+        if key in info:
+            template[key] = info[key]
+    return template
+
+
+def _resolve_ring(template: dict) -> dict:
+    """Replace generic ring template with a specific ring type."""
+    info = generate_random_ring()
+    template["ring_id"] = info["ring_id"]
+    template["name"] = info["name"]
+    template["fg"] = info["fg"]
+    for k, v in info.items():
+        if k not in ("ring_id", "name", "fg"):
+            template[k] = v
+    return template
+
+
+def _resolve_amulet(template: dict) -> dict:
+    """Replace generic amulet template with a specific amulet type."""
+    info = generate_random_amulet()
+    template["amulet_id"] = info["amulet_id"]
+    template["name"] = info["name"]
+    template["fg"] = info["fg"]
+    for k, v in info.items():
+        if k not in ("amulet_id", "name", "fg"):
+            template[k] = v
+    return template
+
+
+def _resolve_food(template: dict) -> dict:
+    """Replace generic food template with a specific food type."""
+    info = generate_random_food()
+    template["food_id"] = info["food_id"]
+    template["name"] = info["name"]
+    template["fg"] = info["fg"]
+    for k, v in info.items():
+        if k not in ("food_id", "name", "fg"):
+            template[k] = v
+    return template
+
+
+def _resolve_item(template: dict, depth: int) -> dict:
+    """Resolve any generic item template to its specific type."""
+    itype = template.get("type")
+    if itype == "wand":
+        template = _resolve_wand(template, depth)
+    elif itype == "scroll":
+        template = _resolve_scroll(template)
+    elif itype == "potion":
+        template = _resolve_potion(template)
+    elif itype == "ring":
+        template = _resolve_ring(template)
+    elif itype == "amulet":
+        template = _resolve_amulet(template)
+    elif itype == "food":
+        template = _resolve_food(template)
+    return template
+
+
+def _find_door_chokepoints(walkable: np.ndarray) -> list[tuple[int, int]]:
+    """Find 1-wide corridor chokepoints suitable for door placement.
+
+    A chokepoint is a walkable tile with exactly 2 walkable orthogonal
+    neighbors that are on opposite sides (horizontal or vertical).
+    """
+    w, h = walkable.shape
+    chokepoints = []
+    for x in range(1, w - 1):
+        for y in range(1, h - 1):
+            if not walkable[x, y]:
+                continue
+            n = walkable[x, y - 1]
+            s = walkable[x, y + 1]
+            e = walkable[x + 1, y]
+            ww = walkable[x - 1, y]
+            neighbors = int(n) + int(s) + int(e) + int(ww)
+            if neighbors != 2:
+                continue
+            # Opposite sides: north-south or east-west
+            if (n and s and not e and not ww) or (e and ww and not n and not s):
+                chokepoints.append((x, y))
+    return chokepoints
+
+
 def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = True):
-    """Generate dungeon. Returns (walkable, transparent, entities, special_rooms, shrine_locations, layout_name)."""
+    """Generate dungeon.
+
+    Returns (walkable, transparent, entities, special_rooms,
+             shrine_locations, layout_name, traps, doors).
+    """
     from engine import Entity, RenderOrder
 
     walkable = np.zeros((width, height), dtype=bool, order="F")
     transparent = np.zeros((width, height), dtype=bool, order="F")
     entities: list = []
+    traps: list[dict] = []
+    doors: dict[tuple[int, int], str] = {}
 
     # 1. Pick and run layout generator
     from generators import pick_layout
@@ -196,12 +302,23 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
     # 3. Prune any tiles unreachable from the player
     _prune_unreachable(walkable, transparent, px, py)
 
+    # 3b. Door placement at chokepoints (before entity placement)
+    chokepoints = _find_door_chokepoints(walkable)
+    for cx, cy in chokepoints:
+        if cx == px and cy == py:
+            continue  # never block player start
+        if random.random() < DOOR_CHANCE:
+            doors[(cx, cy)] = "closed"
+            walkable[cx, cy] = False
+            transparent[cx, cy] = False
+
     # 4. Designate special rooms (~15% of non-first rooms)
     special_rooms: dict[int, str] = {}  # room index -> type
     shrine_locations: set[tuple[int, int]] = set()
+    room_types = ["vault", "arena", "shrine", "library", "armory", "garden"]
     for i in range(1, len(rooms)):
         if random.random() < 0.15:
-            rtype = random.choice(["vault", "arena", "shrine"])
+            rtype = random.choice(room_types)
             special_rooms[i] = rtype
 
     # 5. Place player
@@ -209,17 +326,17 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
         Entity(px, py, "@", "Player", fg=(255, 255, 255), blocks=True, hp=100, power=2)
     )
 
-    # 6. Scatter monsters using data tables (skip special vault/shrine rooms)
+    # 6. Scatter monsters using data tables (skip special vault/shrine/library/armory/garden rooms)
     monster_table = get_monsters(depth, ascending)
     monster_counts: dict[str, int] = {}
 
-    # Build set of tiles belonging to vault/shrine rooms (no monsters there)
+    # Build set of tiles belonging to no-monster and arena rooms
     no_monster_tiles: set[tuple[int, int]] = set()
     arena_tiles: set[tuple[int, int]] = set()
     for ri, rtype in special_rooms.items():
         room = rooms[ri]
         tiles = room.inner_tiles()
-        if rtype in ("vault", "shrine"):
+        if rtype in ("vault", "shrine", "library", "armory", "garden"):
             no_monster_tiles.update(tiles)
         elif rtype == "arena":
             arena_tiles.update(tiles)
@@ -244,6 +361,10 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
                 fg=template["fg"], blocks=True, ai="dijkstra",
                 hp=template["hp"], power=template["power"], defense=template["defense"],
                 xp_value=xp_value,
+                ability=template.get("ability"),
+                ability_params=template.get("ability_params"),
+                corpse_nutrition=template.get("corpse_nutrition", 0),
+                corpse_effect=template.get("corpse_effect"),
             )
             apply_enemy_prefix(e, template)
             entities.append(e)
@@ -259,11 +380,7 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
             if any(e.blocks and e.x == x and e.y == y for e in entities):
                 continue
             template = pick_weighted(item_table)
-            # Resolve generic wands/scrolls to specific types
-            if template.get("type") == "wand":
-                template = _resolve_wand(template, depth)
-            elif template.get("type") == "scroll":
-                template = _resolve_scroll(template)
+            template = _resolve_item(template, depth)
             template = apply_item_affixes(template)
             entities.append(
                 Entity(
@@ -273,6 +390,37 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
                     item=template,
                 )
             )
+
+    # 7b. Scatter traps
+    # Build set of entity positions and shrine room tiles for exclusion
+    entity_positions: set[tuple[int, int]] = {(e.x, e.y) for e in entities}
+    shrine_tiles: set[tuple[int, int]] = set()
+    for ri, rtype in special_rooms.items():
+        if rtype == "shrine":
+            shrine_tiles.update(rooms[ri].inner_tiles())
+
+    for x in range(width):
+        for y in range(height):
+            if not walkable[x, y]:
+                continue
+            if x == px and y == py:
+                continue
+            if (x, y) in entity_positions:
+                continue
+            if (x, y) in shrine_tiles:
+                continue
+            if random.random() > TRAP_CHANCE:
+                continue
+            trap_info = generate_random_trap()
+            trap_entry = {
+                "x": x,
+                "y": y,
+                "revealed": False,
+            }
+            # Copy all fields from trap type
+            for k, v in trap_info.items():
+                trap_entry[k] = v
+            traps.append(trap_entry)
 
     # 8. Populate special rooms
     for ri, rtype in special_rooms.items():
@@ -290,10 +438,7 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
                 if any(e.x == tx and e.y == ty for e in entities):
                     continue
                 template = pick_weighted(item_table)
-                if template.get("type") == "wand":
-                    template = _resolve_wand(template, depth)
-                elif template.get("type") == "scroll":
-                    template = _resolve_scroll(template)
+                template = _resolve_item(template, depth)
                 template = apply_item_affixes(template)
                 entities.append(
                     Entity(
@@ -307,10 +452,7 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
         elif rtype == "arena":
             # One guaranteed good item at center
             template = pick_weighted(item_table)
-            if template.get("type") == "wand":
-                template = _resolve_wand(template, depth)
-            elif template.get("type") == "scroll":
-                template = _resolve_scroll(template)
+            template = _resolve_item(template, depth)
             template = apply_item_affixes(template)
             if not any(e.x == cx and e.y == cy and e.blocks for e in entities):
                 entities.append(
@@ -333,6 +475,76 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
                     item={"type": "shrine"},
                 )
             )
+
+        elif rtype == "library":
+            # 2-4 scrolls only
+            num_scrolls = random.randint(2, 4)
+            chosen_tiles = random.sample(tiles, min(num_scrolls, len(tiles)))
+            for tx, ty in chosen_tiles:
+                if any(e.x == tx and e.y == ty for e in entities):
+                    continue
+                template = {"char": "?", "name": "Scroll", "fg": (200, 200, 150), "type": "scroll"}
+                template = _resolve_scroll(template)
+                # No affixes on scrolls (apply_item_affixes skips them anyway)
+                template = apply_item_affixes(template)
+                entities.append(
+                    Entity(
+                        tx, ty, template["char"], template["name"],
+                        fg=template["fg"], blocks=False,
+                        render_order=RenderOrder.ITEM,
+                        item=template,
+                    )
+                )
+
+        elif rtype == "armory":
+            # 2-3 weapons/armor only
+            num_gear = random.randint(2, 3)
+            chosen_tiles = random.sample(tiles, min(num_gear, len(tiles)))
+            for tx, ty in chosen_tiles:
+                if any(e.x == tx and e.y == ty for e in entities):
+                    continue
+                # Pick weapon or armor from the item table for this depth
+                gear_items = [
+                    (w, t) for w, t in item_table
+                    if t.get("type") in ("weapon", "armor")
+                ]
+                if not gear_items:
+                    continue
+                template = pick_weighted(gear_items)
+                template = _resolve_item(template, depth)
+                template = apply_item_affixes(template)
+                entities.append(
+                    Entity(
+                        tx, ty, template["char"], template["name"],
+                        fg=template["fg"], blocks=False,
+                        render_order=RenderOrder.ITEM,
+                        item=template,
+                    )
+                )
+
+        elif rtype == "garden":
+            # 2-4 food/potions only
+            num_garden = random.randint(2, 4)
+            chosen_tiles = random.sample(tiles, min(num_garden, len(tiles)))
+            for tx, ty in chosen_tiles:
+                if any(e.x == tx and e.y == ty for e in entities):
+                    continue
+                # Randomly choose food or potion
+                if random.random() < 0.5:
+                    template = {"char": "%", "name": "Food", "fg": (180, 140, 80), "type": "food"}
+                    template = _resolve_food(template)
+                else:
+                    template = {"char": "!", "name": "Potion", "fg": (200, 50, 50), "type": "potion"}
+                    template = _resolve_potion(template)
+                template = apply_item_affixes(template)
+                entities.append(
+                    Entity(
+                        tx, ty, template["char"], template["name"],
+                        fg=template["fg"], blocks=False,
+                        render_order=RenderOrder.ITEM,
+                        item=template,
+                    )
+                )
 
     # 9. Place stairs or Thing-in-Itself
     if len(rooms) >= 2:
@@ -367,4 +579,4 @@ def generate_dungeon(width: int, height: int, depth: int = 1, ascending: bool = 
             )
         )
 
-    return walkable, transparent, entities, special_rooms, shrine_locations, layout_name
+    return walkable, transparent, entities, special_rooms, shrine_locations, layout_name, traps, doors
