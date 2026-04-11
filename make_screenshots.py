@@ -13,6 +13,7 @@ os.environ["SDL_RENDER_SCALE_QUALITY"] = "0"
 
 import numpy as np
 import tcod.console
+import tcod.tileset
 import tcod.context
 import tcod.path
 from PIL import Image
@@ -98,9 +99,18 @@ def main() -> None:
     print(f"Theme: {game.current_theme['name']}")
     print(f"Capturing {GIF_FRAMES} frames...")
 
+    tileset_path = os.path.join(os.path.dirname(__file__), "assets", "tileset.png")
+    if os.path.exists(tileset_path):
+        tileset = tcod.tileset.load_tilesheet(
+            tileset_path, 16, 16, tcod.tileset.CHARMAP_CP437,
+        )
+    else:
+        tileset = None
+
     with tcod.context.new(
         columns=TOTAL_W, rows=MAP_HEIGHT, title="Geist - Screenshot Mode",
         sdl_window_flags=0x2020,
+        tileset=tileset,
     ) as context:
         # Let the window initialise and render a couple of warm-up frames
         for _ in range(3):

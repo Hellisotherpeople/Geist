@@ -6,6 +6,7 @@ os.environ["SDL_RENDER_SCALE_QUALITY"] = "0"
 import tcod.console
 import tcod.context
 import tcod.event
+import tcod.tileset
 
 from engine import Game, GameState
 
@@ -55,9 +56,18 @@ def main() -> None:
     drop_mode = False   # When True in inventory, next letter drops instead of uses
     throw_mode = False  # When True in inventory, next letter throws instead of uses
 
+    tileset_path = os.path.join(os.path.dirname(__file__), "assets", "tileset.png")
+    if os.path.exists(tileset_path):
+        tileset = tcod.tileset.load_tilesheet(
+            tileset_path, 16, 16, tcod.tileset.CHARMAP_CP437,
+        )
+    else:
+        tileset = None
+
     with tcod.context.new(
         columns=total_w, rows=MAP_HEIGHT, title="Geist",
         sdl_window_flags=0x2020,
+        tileset=tileset,
     ) as context:
         while game.running:
             console.clear()
