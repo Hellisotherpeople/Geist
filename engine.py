@@ -13,6 +13,22 @@ import tcod.path
 
 FOV_RADIUS = 20
 UI_WIDTH = 30
+
+# Pixel-art display mapping (tiles.py registers sprites at these codepoints).
+# Imported lazily so the module works even without tiles.py present.
+try:
+    from tiles import DISPLAY_CHAR as _DISPLAY_CHAR
+    from tiles import (TILE_WALL, TILE_FLOOR, TILE_DOOR_CLOSED, TILE_DOOR_OPEN,
+                       TILE_TRAP, TILE_WALL_EXPLORED, TILE_FLOOR_EXPLORED, TILE_STAR)
+    _HAS_TILES = True
+except ImportError:
+    _DISPLAY_CHAR = {}
+    _HAS_TILES = False
+
+
+def _dc(ascii_char: int) -> int:
+    """Map an ASCII char to its display (pixel-art) codepoint, if available."""
+    return _DISPLAY_CHAR.get(ascii_char, ascii_char)
 INV_W = 28
 INV_H = 28
 MAX_MESSAGES = 50
@@ -2834,10 +2850,10 @@ class Game:
                     # Check for doors
                     door_state = self.doors.get((x, y))
                     if door_state == "closed":
-                        console.rgb[x, y] = ord("+"), wfg, wbb
+                        console.rgb[x, y] = _dc(ord("+")), wfg, wbb
                         continue
                     elif door_state == "open":
-                        console.rgb[x, y] = ord("/"), (100, 100, 120), (0, 0, 0)
+                        console.rgb[x, y] = _dc(ord("/")), (100, 100, 120), (0, 0, 0)
                         continue
 
                     if self.walkable[x, y]:
@@ -2861,8 +2877,7 @@ class Game:
                             g = min(255, g + 80)
                             b = min(255, b + 80)
 
-                        floor_ch = ord("_")
-                        console.rgb[x, y] = floor_ch, (r, g, b), (0, 0, 0)
+                        console.rgb[x, y] = _dc(ord("_")), (r, g, b), (0, 0, 0)
                     else:
                         s_bg = (0.5 * math.sin(ts * 1.5 + x * 0.2 + y * 0.3)
                                 + 0.3 * math.sin(ts * 2.5 + x * 0.5 - y * 0.2)
@@ -2876,18 +2891,18 @@ class Game:
                         wfg_ = max(0, min(255, int(wfg[1] + 30 * s_wf)))
                         wfb = max(0, min(255, int(wfg[2] + 30 * s_wf)))
 
-                        console.rgb[x, y] = ord("#"), (wfr, wfg_, wfb), (br, bg, bb)
+                        console.rgb[x, y] = _dc(ord("#")), (wfr, wfg_, wfb), (br, bg, bb)
                 elif self.explored[x, y]:
                     # Check for explored doors
                     door_state = self.doors.get((x, y))
                     if door_state == "closed":
-                        console.rgb[x, y] = ord("+"), efg, ebg
+                        console.rgb[x, y] = _dc(ord("+")), efg, ebg
                         continue
                     elif door_state == "open":
-                        console.rgb[x, y] = ord("/"), (70, 70, 80), ebg
+                        console.rgb[x, y] = _dc(ord("/")), (70, 70, 80), ebg
                         continue
 
-                    ch = ord("_") if self.walkable[x, y] else ord("#")
+                    ch = _dc(ord("_")) if self.walkable[x, y] else _dc(ord("#"))
                     pulse = 0.07 * math.sin(t * 0.5 + x * 0.1 + y * 0.1)
                     er = max(0, min(255, int(efg[0] + efg[0] * pulse)))
                     eg = max(0, min(255, int(efg[1] + efg[1] * pulse)))
@@ -2900,11 +2915,10 @@ class Game:
             if trap.get("revealed") and self.explored[tx, ty]:
                 trap_fg = trap.get("fg", (200, 150, 50))
                 if self.fov[tx, ty]:
-                    console.rgb[tx, ty] = ord("^"), trap_fg, (0, 0, 0)
+                    console.rgb[tx, ty] = _dc(ord("^")), trap_fg, (0, 0, 0)
                 else:
-                    # Dim color for explored but not visible
                     dim_fg = (trap_fg[0] // 2, trap_fg[1] // 2, trap_fg[2] // 2)
-                    console.rgb[tx, ty] = ord("^"), dim_fg, ebg
+                    console.rgb[tx, ty] = _dc(ord("^")), dim_fg, ebg
 
     def _render_entities(self, console: tcod.console.Console):
         t = time.monotonic()
@@ -2924,19 +2938,19 @@ class Game:
                     if dist > 1:
                         if has_esp and e.alive:
                             # ESP: show dim silhouette
-                            console.rgb[e.x, e.y] = e.char, (60, 60, 80), (0, 0, 0)
+                            console.rgb[e.x, e.y] = _dc(e.char), (60, 60, 80), (0, 0, 0)
                         continue
             if e.alive and "invisible" in e.effects:
                 if not can_see_invis:
                     dist = abs(e.x - self.player.x) + abs(e.y - self.player.y)
                     if dist > 1:
                         if has_esp and e.alive:
-                            console.rgb[e.x, e.y] = e.char, (60, 60, 80), (0, 0, 0)
+                            console.rgb[e.x, e.y] = _dc(e.char), (60, 60, 80), (0, 0, 0)
                         continue
 
             # ESP: show all living entities regardless of FOV
             if has_esp and e.alive and not in_fov:
-                console.rgb[e.x, e.y] = e.char, (60, 60, 80), (0, 0, 0)
+                console.rgb[e.x, e.y] = _dc(e.char), (60, 60, 80), (0, 0, 0)
                 continue
 
             if not in_fov:
@@ -2966,7 +2980,7 @@ class Game:
                     g = max(0, min(255, int(fg[1] + 20 * s)))
                     b = max(0, min(255, int(fg[2] + 15 * s)))
                     fg = (r, g, b)
-            console.rgb[e.x, e.y] = e.char, fg, (0, 0, 0)
+            console.rgb[e.x, e.y] = _dc(e.char), fg, (0, 0, 0)
 
     def _render_vfx(self, console: tcod.console.Console):
         """Render active VFX (bolt travel + impact flash)."""
@@ -2985,7 +2999,7 @@ class Game:
                     ix, iy = path[-1]
                     if 0 <= ix < self.width and 0 <= iy < self.height:
                         c = int(255 * brightness)
-                        console.rgb[ix, iy] = ord("*"), (c, c, c), (int(c * 0.3), int(c * 0.3), int(c * 0.2))
+                        console.rgb[ix, iy] = _dc(ord("*")), (c, c, c), (int(c * 0.3), int(c * 0.3), int(c * 0.2))
                 else:
                     for i in range(max(0, head_idx - trail_len), min(head_idx + 1, len(path))):
                         px, py = path[i]

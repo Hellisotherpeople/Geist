@@ -9,6 +9,7 @@ import tcod.event
 import tcod.tileset
 
 from engine import Game, GameState
+from tiles import register_sprites
 
 MAP_WIDTH = 100
 MAP_HEIGHT = 100
@@ -49,6 +50,34 @@ ALL_MOVE_KEYS = {**MOVE_KEYS, **VI_MOVE_KEYS}
 WAIT_KEYS = {tcod.event.KeySym.KP_5, tcod.event.KeySym.N5}
 
 
+TILE_SIZES = [8, 10, 12, 14, 16, 20, 24]
+DEFAULT_TILE_IDX = 4  # 16px
+
+
+def _load_tileset(tile_size: int) -> tcod.tileset.Tileset | None:
+    """Generate a font tilesheet at the given size, load it, register sprites."""
+    out = os.path.join(os.path.dirname(__file__), "assets", f"tileset_{tile_size}.png")
+    base = os.path.join(os.path.dirname(__file__), "assets", "tileset.png")
+    # Use the pre-generated 16px sheet if it matches, otherwise generate on the fly
+    if tile_size == 16 and os.path.exists(base):
+        path = base
+    elif os.path.exists(out):
+        path = out
+    else:
+        try:
+            from generate_tileset import generate_tileset
+            generate_tileset(tile_size=tile_size, output=out)
+            path = out
+        except Exception:
+            if os.path.exists(base):
+                path = base
+            else:
+                return None
+    ts = tcod.tileset.load_tilesheet(path, 16, 16, tcod.tileset.CHARMAP_CP437)
+    register_sprites(ts)
+    return ts
+
+
 def main() -> None:
     game = Game(MAP_WIDTH, MAP_HEIGHT)
     total_w = MAP_WIDTH + UI_WIDTH
@@ -56,13 +85,8 @@ def main() -> None:
     drop_mode = False   # When True in inventory, next letter drops instead of uses
     throw_mode = False  # When True in inventory, next letter throws instead of uses
 
-    tileset_path = os.path.join(os.path.dirname(__file__), "assets", "tileset.png")
-    if os.path.exists(tileset_path):
-        tileset = tcod.tileset.load_tilesheet(
-            tileset_path, 16, 16, tcod.tileset.CHARMAP_CP437,
-        )
-    else:
-        tileset = None
+    tile_idx = DEFAULT_TILE_IDX
+    tileset = _load_tileset(TILE_SIZES[tile_idx])
 
     with tcod.context.new(
         columns=total_w, rows=MAP_HEIGHT, title="Geist",
@@ -162,6 +186,23 @@ def main() -> None:
 
                 elif isinstance(event, tcod.event.KeyDown):
                     sym = event.sym
+
+                    # -- ZOOM: Ctrl+= zoom in, Ctrl+- zoom out --
+                    if event.mod & tcod.event.Modifier.CTRL:
+                        if sym in (tcod.event.KeySym.EQUALS, tcod.event.KeySym.PLUS, tcod.event.KeySym.KP_PLUS):
+                            if tile_idx < len(TILE_SIZES) - 1:
+                                tile_idx += 1
+                                new_ts = _load_tileset(TILE_SIZES[tile_idx])
+                                if new_ts:
+                                    context.change_tileset(new_ts)
+                            continue
+                        elif sym in (tcod.event.KeySym.MINUS, tcod.event.KeySym.KP_MINUS):
+                            if tile_idx > 0:
+                                tile_idx -= 1
+                                new_ts = _load_tileset(TILE_SIZES[tile_idx])
+                                if new_ts:
+                                    context.change_tileset(new_ts)
+                            continue
 
                     # -- DEAD / VICTORY: any key exits --
                     if game.state in (GameState.DEAD, GameState.VICTORY):

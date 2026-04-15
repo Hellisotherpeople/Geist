@@ -19,6 +19,7 @@ import tcod.path
 from PIL import Image
 
 from engine import Game, GameState
+from tiles import register_sprites
 
 MAP_WIDTH = 100
 MAP_HEIGHT = 100
@@ -104,6 +105,7 @@ def main() -> None:
         tileset = tcod.tileset.load_tilesheet(
             tileset_path, 16, 16, tcod.tileset.CHARMAP_CP437,
         )
+        register_sprites(tileset)
     else:
         tileset = None
 
